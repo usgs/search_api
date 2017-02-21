@@ -1350,5 +1350,128 @@ search_api._console = function _console( msg, mode ) {
 
 
 //===========================================================
+// leaflet plugin - available when leaflet loaded before api
+//===========================================================
+console.log( (new Date()).toLocaleTimeString() + " search_api " + search_api.version + " [load]: api loaded and available" );
+if (
+    window.L           !== undefined &&
+    L.Control          !== undefined &&
+    L.Control.extend   !== undefined &&
+    L.control          !== undefined &&
+    L.Map              !== undefined &&
+    L.Map.mergeOptions !== undefined &&
+    L.Map.addInitHook  !== undefined 
+) {
+    
+    // constructor
+    L.Control.Search = L.Control.extend({
+        
+        //------------------------------
+        // public (documented)
+        //------------------------------
+        
+        //.............................
+        // creation options
+        options : {
+            
+            // standard leaflet control options
+            position: "topright",
+            
+            // whether to automatically connect basic on_result handler to zoom map to result and show popup when on_result is not input
+            autoResult: true,
+            
+            // whether to automatically disable suggestion menu if mobile device is detected
+            autoDisableMenu: false,
+            
+            // all search_api.create() options supported as additional properties
+        },
+        
+        //.............................
+        // methods
+        
+        // get search widget object for accessing widget properties and methods after control creation
+        getWidget: function() {
+            return this._widget;
+        },
+        
+        //------------------------------
+        // private (undocumented)
+        //------------------------------
+        
+        onAdd: function(map) {
+            
+            // add control div for widget with a unique incremented id
+            var div = L.DomUtil.create( "div", "", map.getContainer() );
+            var n = 1;  while( L.DomUtil.get("search_api_"+n) !== null ) { n++; }
+            div.id = "search_api_"+n;
+            
+            // disable click propagation so clicking widget does not fire map click
+            L.DomEvent.disableClickPropagation(div);
+            
+            // make copy of control input options for search_api.create()
+            var opts = L.Util.extend({},this.options);
+            
+            // add basic on_result callback if autoResult and on_result not input
+            if (opts.autoResult===true && typeof opts.on_result!=="function") {
+                opts.on_result = function(o) {
+                    map
+                        .fitBounds([ // zoom to location
+                            [ o.result.properties.LatMin, o.result.properties.LonMin ],
+                            [ o.result.properties.LatMax, o.result.properties.LonMax ]
+                        ])
+                        .openPopup( // open popup with label and category
+                            '<div style="text-align:center;">'+
+                                '<b>'+ o.result.properties.Label +'</b><br/>'+
+                                o.result.properties.Category +
+                            '</div>',
+                            [ o.result.properties.Lat, o.result.properties.Lon ]
+                        );
+                }
+            }
+            
+            // disable menu if mobile and specified
+            if (L.Browser.mobile && opts.autoDisableMenu===true) {
+                opts.enable_menu = false;
+            }
+            
+            // remove non-api options
+            delete opts.position
+            delete opts.autoResult;
+            delete opts.autoDisableMenu
+            
+            // create widget using opts and return control div
+            this._widget = search_api.create( div.id, opts );
+            return div;
+        },
+        
+        onRemove: function(map) {
+            // destroy widget
+            this._widget.destroy();
+        }
+        
+    }); // end constructor
+    
+    // constructor registration
+    L.control.search = function(options) {
+        return new L.Control.Search(options);
+    };
+    
+    // add new map constructor option to create search control
+    L.Map.mergeOptions({
+        searchControl: false
+    });
+    
+    // add search control when map created if option set
+    L.Map.addInitHook( function() {
+        if (typeof this.options.searchControl === "object") {
+            this.searchControl = ( new L.Control.Search( this.options.searchControl ) ).addTo(this);
+        }
+    });
+    
+    // done
+    console.log( (new Date()).toLocaleTimeString() + " search_api " + search_api.version + " [load]: Leaflet plugin loaded and available" );
+}
+
+//===========================================================
 // END
 //===========================================================
