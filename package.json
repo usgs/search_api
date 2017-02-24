@@ -1,0 +1,28 @@
+{
+  "name": "usgs-search-api",
+  "version": "2.0.0",
+  "description": "USGS Search JavaScript API",
+  "devDependencies": {
+  },
+  "main": "dist/search_api.js",
+  "style": "dist/search_api.css",
+  "files": [
+    "dist/*"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/usgs/search_api.git"
+  },
+  "keywords": [
+    "usgs",
+    "search"
+  ],
+  "contributors": [
+    {
+      "name": "Joe Vrabel",
+      "email": "jvrabel@usgs.gov"
+    }
+  ],
+  "license": "MIT",
+  "readmeFilename": "README.md"
+}
