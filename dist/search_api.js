@@ -930,10 +930,18 @@ search_api._setup = function(o) {
                         // check
                         if (data.error       !== undefined) { search_api._console(funcName+"service call for search term '"+search_term+"' returned error: "+data.error,    "warn"); return; }
                         if (data.constructor !== Array    ) { search_api._console(funcName+"service call for search term '"+search_term+"' did not return array of results","warn"); return; }
+
                         // ok
-                        search_api._console(funcName+"service call for search term '"+search_term+"' returned "+data.length+" results");
-                        o._menu.update( search_term, data ); // update menu with results
-                        o._menu.cache[term_cache] = data;    // save to cache
+                        if (data.length > 0) {
+                            search_api._console(funcName+"service call for search term '"+search_term+"' returned "+data.length+" results");
+                            o._menu.update( search_term, data ); // update menu with results
+                            o._menu.cache[term_cache] = data;    // save to cache
+                        }
+                        //no ok, use ESRI
+                        else {    
+                            search_api._geocode(o);
+                        }
+                        
                     },
                     
                     "error": function(status) {
@@ -1069,7 +1077,7 @@ search_api._geocode = function(o) {
     o.trigger("search");
     
     // disable and show spinner
-    o.enable(false)._getSpinner().removeClass("search-api-spinner-hidden");
+    //o.enable(false)._getSpinner().removeClass("search-api-spinner-hidden");
     
     // get filtered search 'term' and search 'states' to use
     var term_states   = o._getSearchTermStates();
@@ -1212,6 +1220,8 @@ search_api._geocode = function(o) {
             if (json.candidates === undefined) { search_api._console(funcName+"bad service response (no candidate field)","warn"); return; }
             if (json.candidates.length <= 0  ) { search_api._console(funcName+"no results returned");                              return; }
             search_api._console(funcName+json.candidates.length+" results returned");
+
+            var data = [];
             
             // loop though candidate results
             $.each(json.candidates, function(idx,candidate) {
@@ -1254,7 +1264,7 @@ search_api._geocode = function(o) {
                     },
                     "properties": {
                         "Id"           : null,
-                        "Category"     : candidate.attributes.Type,
+                        "Category"     : 'ESRI Geosearch',
                         "Name"         : candidate.address.replace(/United States$/i,"").replace(/USA$/,"").replace(/\s+$/,"").replace(/,+$/,""),
                         "County"       : candidate.attributes.Subregion,
                         "State"        : state,
@@ -1289,18 +1299,22 @@ search_api._geocode = function(o) {
                     // just have name
                     o.result.properties.Label = o.result.properties.Name;
                 }
+
+                data.push(o.result.properties);
+
+                // // clear text box and disable search button
+                // o._getTextbox().val("");
+                // o._getButton().removeClass("search-api-button-active");
                 
-                // clear text box and disable search button
-                o._getTextbox().val("");
-                o._getButton().removeClass("search-api-button-active");
+                // // trigger event
+                // o.trigger("result");
                 
-                // trigger event
-                o.trigger("result");
-                
-                // done
-                haveResult = true;
-                return false; // end loop
+                // // done
+                // haveResult = true;
+                // return false; // end loop
             });
+
+            o._menu.update( search_term, data ); // update menu with results
         },
         
         "error": function(status) {
