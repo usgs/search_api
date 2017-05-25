@@ -1,7 +1,7 @@
 @charset "utf-8";
 /*
 ====================================================
-search_api css
+search_api css (version 2.1)
 
 The .search-api class family is used for scoping.
 Theme colors:
@@ -43,15 +43,15 @@ layout
     margin: 0px;
 }
 
-/* widget parts: search button, textbox, spinner */
+/* widget parts: search icon, textbox, spinner */
 .search-api-container span {
     display: table-cell;
     height: 100%;
     vertical-align: middle;
 }
 
-/* search button */
-.search-api-button {
+/* search icon */
+.search-api-icon {
     width: 34px; /* varies with size class */
     height: 100%;
     border: none;
@@ -62,21 +62,10 @@ layout
     background-color: #eee;
     text-align: center;
 }
-.search-api-button svg {
+.search-api-icon svg {
     width: 20px;
     height: 20px;
     fill: #333;
-}
-.search-api-button.search-api-button-active {
-    background-color: #e9f4fc;
-    opacity: 0.7;
-    cursor: pointer;
-}
-.search-api-button.search-api-button-active:hover {
-    opacity: 1;
-}
-.search-api-button.search-api-button-active svg {
-    fill: #1f8dd6;
 }
 
 /* textbox */
@@ -94,7 +83,7 @@ layout
     color: #1f8dd6;
 }
 .search-api-container input.search-api-no-suggestions {
-    color: #333;
+    color: #900;
 }
 .search-api-container input::-webkit-input-placeholder { color: #999; }
 .search-api-container input:-moz-placeholder { color: #999; }
@@ -106,7 +95,7 @@ layout
 .search-api-spinner {
     width: 20px;
     height: 100%;
-    background-image: url("./img/spinner_16x16.gif");
+    background-image: url("./spinner_16x16.gif");
     background-repeat: no-repeat;
     background-position: center;
 }
@@ -116,7 +105,7 @@ layout
 
 /*
 ..........................
-state
+widget state
 ..........................
 */
 
@@ -126,9 +115,8 @@ state
 }
 
 /* disabled */
-.search-api-container.search-api-disabled .search-api-button,
-.search-api-container.search-api-disabled .search-api-button:hover,
-.search-api-container.search-api-disabled .search-api-button svg,
+.search-api-container.search-api-disabled .search-api-icon,
+.search-api-container.search-api-disabled .search-api-icon svg,
 .search-api-container.search-api-disabled input,
 .search-api-container.search-api-disabled .search-api-spinner {
     background-color: #eee;
@@ -154,17 +142,17 @@ sizing (similar to bootstrap-style size classes)
 
 /* large */
 .search-api-container.search-api-lg { width:350px; height: 46px; }
-.search-api-container.search-api-lg .search-api-button { width: 46px; }
+.search-api-container.search-api-lg .search-api-icon { width: 46px; }
 .search-api-container.search-api-lg input { font-size: 18px; }
    
 /* small */
 .search-api-container.search-api-sm { width:250px; height: 29px; }
-.search-api-container.search-api-sm .search-api-button { width: 29px; }
+.search-api-container.search-api-sm .search-api-icon { width: 29px; }
 .search-api-container.search-api-sm input { font-size: 12px; }
 
 /* extra small */
 .search-api-container.search-api-xs { width:200px; height: 25px; }
-.search-api-container.search-api-xs .search-api-button { width: 25px; }
+.search-api-container.search-api-xs .search-api-icon { width: 25px; }
 .search-api-container.search-api-xs input { font-size: 12px; }
 
 
@@ -216,6 +204,7 @@ layout
 
 /* menu title bar and close icon */
 .search-api-menu-title {
+    position: relative;
     height: 20px;
     background: #999;
     color: #fff;
@@ -225,12 +214,10 @@ layout
     font-weight: bold;
 }
 .search-api-menu-close {
-    height: 16px;
-    width: 16px;
-    background-image: url("./img/close_16x16.png");
     position: absolute;
-    top: 3px;
-    right: 3px;
+    top: 2px;
+    right: 5px;
+    font-weight: bold;
     cursor: pointer;
 }
 
@@ -274,13 +261,13 @@ layout
 
 /* item info under item name */
 .search-api-menu-item-info {
-    font-size: 80%;
+    font-size: 85%;
     color: #999;
 }
 
 /*
 ..........................
-state
+menu state
 ..........................
 */
 

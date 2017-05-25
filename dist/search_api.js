@@ -1,10 +1,10 @@
 /*
 ===========================================================
-search_api.js
+search_api.js (version 2.1)
 -----------------------------------------------------------
 JavaScript API for creating a location search widget in a web page.
 The primary data source is a dedicated database and data service created for this api.
-The ESRI Online Geocoding Service ( http://geocode.arcgis.com/arcgis/ ) is used as a secondary data source.
+The ESRI Online Geocoding Service ( http://geocode.arcgis.com/arcgis/ ) is used as a secondary data source when no api service results found.
 -----------------------------------------------------------
 This API requires jQuery ( https://jquery.com/ ) to be loaded.
 -----------------------------------------------------------
@@ -12,8 +12,9 @@ U.S. Geological Survey, Texas Water Science Center, Austin
 https://txpub.usgs.gov/DSS/search_api/
 ===========================================================
 */
+//"use strict"; // dev
 
-// create API object
+// create api object
 if (window.search_api === undefined) { window.search_api = {}; }
 
 
@@ -31,7 +32,7 @@ search_api.verbose = false;
 // read only
 
 // api version number
-search_api.version = "2.0";
+search_api.version = "2.1";
 
 
 //===========================================================
@@ -53,25 +54,148 @@ search_api._isLoadedJq = (window.jQuery !== undefined ? true : false);
 if (!search_api._isLoadedJq) { console.error("The search_api requires jQuery. The search_api will not function properly."); }
 
 // caller for database logging - reset this for custom usage logging for specific applications
-search_api._caller = "jsapi_2.0";
+search_api._caller = "jsapi_2.1";
 
-// base url of primary data service for autocomplete menu
-search_api._apiServiceUrl = "https://txpub.usgs.gov/DSS/search_api/2.0/services/services.ashx/search";
+// base url of primary api data service for suggestion menu
+search_api._apiServiceUrl = "https://txpub.usgs.gov/DSS/search_api/2.1/services/services.ashx/search";
 
 // base url of secondary geocoding service
-search_api._esriServiceUrl = "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates";
+search_api._2ndServiceUrl = "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates";
 
-// list of all valid 2-character state abbreviations
-search_api._all_states = [
-    "AK","AL","AR","AZ","CA","CO","CT","DC","DE","FL","GA","HI","IA","ID","IL","IN","KS","KY","LA","MA","MD","ME","MI","MN","MO","MS","MT",
-    "NC","ND","NE","NH","NJ","NM","NV","NY","OH","OK","OR","PA","PR","RI","SC","SD","TN","TX","UT","VA","VI","VT","WA","WI","WV","WY","N/A"
+// array of allowed result types for secondary search service (those not in list are rejected)
+search_api._2ndOkTypes = [
+    // ...like GNIS feature classes primary search uses...
+    "STATE OR PROVINCE",
+    "COUNTY",
+    "CITY",
+    "OTHER POPULATED PLACE",
+    "STATE CAPITAL",
+    "NATIONAL CAPITAL",
+    "STREAM",
+    "CANAL",
+    "CHANNEL",
+    "LAKE",
+    "RESERVOIR",
+    "CAPE",
+    "BAY",
+    "BASIN",
+    "DAM",
+    "WATERFALL",
+    "MARINA",
+    "OTHER WATER FEATURE",
+    "SPRING",
+    "PARK",
+    // ...not like GNIS but allowed...
+    "MUSEUM",
+    "HOSPITAL",
+    "SCHOOL",
+    "HISTORICAL MONUMENT",
+    "RUIN",
+    "AIRPORT",
+    "SPORTS CENTER",
+    "TOURIST ATTRACTION",
+    "AMUSEMENT PARK",
+    "MILITARY BASE",
+    "POLICE STATION",
+    // ...street addresses have type ""...
+    ""
+    // ...more...
 ];
 
+// long state name to abbreviation lookup for secondary service results
+search_api._statesLong2short = {
+    "ALASKA"               : "AK",
+    "HAWAII"               : "HI",
+    "PUERTO RICO"          : "PR",
+    "ALABAMA"              : "AL",
+    "ARKANSAS"             : "AR",
+    "ARIZONA"              : "AZ",
+    "CALIFORNIA"           : "CA",
+    "COLORADO"             : "CO",
+    "CONNECTICUT"          : "CT",
+    "WASHINGTON, D.C."     : "DC",
+    "DISTRICT OF COLUMBIA" : "DC",
+    "DELAWARE"             : "DE",
+    "FLORIDA"              : "FL",
+    "GEORGIA"              : "GA",
+    "IOWA"                 : "IA",
+    "IDAHO"                : "ID",
+    "ILLINOIS"             : "IL",
+    "INDIANA"              : "IN",
+    "KANSAS"               : "KS",
+    "KENTUCKY"             : "KY",
+    "LOUISIANA"            : "LA",
+    "MASSACHUSETTS"        : "MA",
+    "MARYLAND"             : "MD",
+    "MAINE"                : "ME",
+    "MICHIGAN"             : "MI",
+    "MINNESOTA"            : "MN",
+    "MISSOURI"             : "MO",
+    "MISSISSIPPI"          : "MS",
+    "MONTANA"              : "MT",
+    "NORTH CAROLINA"       : "NC",
+    "NORTH DAKOTA"         : "ND",
+    "NEBRASKA"             : "NE",
+    "NEW HAMPSHIRE"        : "NH",
+    "NEW JERSEY"           : "NJ",
+    "NEW MEXICO"           : "NM",
+    "NEVADA"               : "NV",
+    "NEW YORK"             : "NY",
+    "OHIO"                 : "OH",
+    "OKLAHOMA"             : "OK",
+    "OREGON"               : "OR",
+    "PENNSYLVANIA"         : "PA",
+    "RHODE ISLAND"         : "RI",
+    "SOUTH CAROLINA"       : "SC",
+    "SOUTH DAKOTA"         : "SD",
+    "TENNESSEE"            : "TN",
+    "TEXAS"                : "TX",
+    "UTAH"                 : "UT",
+    "VIRGINIA"             : "VA",
+    "VIRGIN ISLANDS"       : "VI",
+    "VERMONT"              : "VT",
+    "WASHINGTON"           : "WA",
+    "WISCONSIN"            : "WI",
+    "WEST VIRGINIA"        : "WV",
+    "WYOMING"              : "WY",
+    ""                     : "N/A"
+};
+
+// list of all valid 2-character state abbreviations
+search_api._stateAbbrevs = [];
+if (search_api._isLoadedJq) {
+    $.each( search_api._statesLong2short, function(l,s){
+        search_api._stateAbbrevs.push(s);
+    });
+}
+
 // default options
-// defaults are also used for user input validation
-// all options must be defined here with api default values
-// all names must be lowercase for case insensitivity of user's input
+//   defaults are also used for user input validation
+//   all options must be defined here with api default values
+//   all names must be lowercase for case insensitivity of user's input
 search_api._opt_default = {
+    
+    //......................
+    // appearance
+    //......................
+    
+    // widget sizing option, one of:
+    //   "lg" - large size
+    //   "md" - medium size (default)
+    //   "sm" - small size
+    //   "xs" - extra small size
+    size : "md",
+    
+    // width of the widget [px]
+    // omit or set 0 to use a predetermined width based on the "size" option
+    width : 0,
+    
+    // text box placeholder prompt to display when no text is entered
+    // not supported in IE9 and below
+    placeholder : "Search for a place",
+    
+    // text box hover tooltip
+    tooltip : "",
     
     //......................
     // search area
@@ -92,11 +216,8 @@ search_api._opt_default = {
     // suggestion menu
     //......................
     
-    // whether to show the suggestion menu
-    enable_menu : true,
-    
     // minimum number of characters required before attempting to find menu suggestions
-    menu_min_char : 3,
+    menu_min_char : 2,
     
     // maximum number of menu items to display
     menu_max_entries : 50,
@@ -134,68 +255,32 @@ search_api._opt_default = {
     include_huc10 : false, // 10-digit
     include_huc12 : false, // 12-digit
     
-    // whether to perform a fuzzy string comparison search when no exact matches are found for the search term
-    enable_fuzzy : false,
-    
-    // fuzzy search percent match threshold
-    // fuzzy matches whose percent match score are lower than this are rejected
-    // has no effect when enable_fuzzy is false
-    fuzzy_percent : 90,
-    
-    //......................
-    // secondary geocoding service
-    //......................
-    
-    // timeout [seconds] for the secondary geocoding service
-    geocoder_timeout : 5,
-    
-    // percent match required for results to be accepted from the secondary geocoding service
-    geocoder_percent : 90,
-    
-    //......................
-    // misc
-    //......................
-    
-    // widget sizing option, one of:
-    //   "lg" - large size
-    //   "md" - medium size (default)
-    //   "sm" - small size
-    //   "xs" - extra small size
-    size : "md",
-    
-    // width of the widget [px]
-    // omit or set 0 to use a predetermined width based on the "size" option
-    width : 0,
-    
-    // text box placeholder prompt to display when no text is entered
-    // not supported in IE9 and below
-    placeholder : "Search for a place",
-    
-    // text box hover tooltip
-    tooltip : "",
-    
-    // whether to set verbose mode on (true) or off (false)
-    verbose : false,
-    
     //......................
     // event callback functions
     //......................
     
     // function to execute when a search is started
-    // when the menu is enabled, triggered when text is typed in the text box
-    // also triggered when a secondary geocoding service search is started
+    // triggered when the search textbox text changes
     on_search: function(){},
     
     // function to execute when the suggestion menu is updated
     // triggered when new items are displayed in the menu and when the menu closes
     on_update: function(){},
     
-    // function to execute when a result is found
-    // triggered when a menu item is selected or the secondary geocoding service returns a result
+    // function to execute when a suggestion is chosen
+    // triggered when a menu item is selected
     on_result: function(){},
     
-    // function to execute when the secondary geocoding service fails to return a result or times out
-    on_failure: function(){}
+    // function to execute when no suggestions are found for the typed text
+    // triggered when services return no results or time out
+    on_failure: function(){},
+    
+    //......................
+    // misc
+    //......................
+    
+    // whether to set verbose mode on (true) or off (false)
+    verbose : false
 };
 
 
@@ -236,20 +321,20 @@ search_api.create = function( id, opts ) {
     // create widget object with id
     var o = { id: "#"+id };
     
-    // add widget in html element
+    // add widget in specified html element
     $(o.id)
         .empty()
         .html(
             '<div class="search-api-container">' +
-                // search button
-                '<span class="search-api-button">' +
+                // search icon
+                '<span class="search-api-icon">' +
                     '<svg focusable="false" xmlns="http://www.w3.org/2000/svg">' +
                         '<path d="M15.5 14h-.79l-.28-.27C15.41 12.59 16 11.11 16 9.5 16 5.91 13.09 3 9.5 3S3 5.91 3 9.5 5.91 16 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"></path>' +
                     '</svg>' +
                 '</span>' +
                 // text box
                 '<span>' +
-                    '<input type="text" />' +
+                    '<input type="text" value=""/>' +
                 '</span>' +
                 // spinner
                 '<span class="search-api-spinner search-api-spinner-hidden"></span>' +
@@ -257,8 +342,9 @@ search_api.create = function( id, opts ) {
         );
     
     // add suggestion menu to doc
-    o._menu = {};
-    o._menu.container = $('<div class="search-api-menu"></div>').appendTo("body");
+    o._menu = {
+        container : $('<div class="search-api-menu" data-id="'+o.id+'"></div>').appendTo("body")
+    };
     
     //................
     // private methods
@@ -268,9 +354,9 @@ search_api.create = function( id, opts ) {
         return $(this.id).find(".search-api-container");
     };
     
-    // return selector for button
-    o._getButton = function() {
-        return $(this.id).find(".search-api-button");
+    // return selector for icon
+    o._getIcon = function() {
+        return $(this.id).find(".search-api-icon");
     };
     
     // return selector for text box
@@ -286,7 +372,7 @@ search_api.create = function( id, opts ) {
     // return selector for menu
     o._getMenu = function() { return o._menu.container; }
     
-    // return filtered text box search 'term' and search 'states' to use
+    // return filtered text box search 'term' and 'states' to use
     o._getSearchTermStates = function() {
         
         // filter term
@@ -303,29 +389,29 @@ search_api.create = function( id, opts ) {
         // parse any 2-char state abbreviation at end
         var states = "";
         var parts = term.split(" ");
-        if ( parts.length>=2 && $.inArray( parts[parts.length-1], search_api._all_states )>=0 ) {
+        if ( parts.length>=2 && $.inArray( parts[parts.length-1], search_api._stateAbbrevs )>=0 ) {
             states = parts.pop();
             term   = parts.join(" ");
         }
         
         // compare any parsed state to allowed search_states
         if (states !== "" && o.opts.search_states === "ALL") {
-            // parsed state and all states allowed
+            // have state and all states allowed
             // return term and states as is
         } else if (states !== "" && o.opts.search_states !== "ALL") {
-            // parsed state and specific states allowed
+            // have state and specific states allowed
             if ( $.inArray( states, o.opts.search_states.split(",") ) <= -1 ) {
                 // not in allowed list
-                term   = term + " " + states;  // add parsed state back in term
-                states = o.opts.search_states; // return specified search_states
+                term   = term + " " + states;  // add parsed state back in term so no match found
+                states = o.opts.search_states; // set states to search_states
             }
         } else {
-            // no state parsed - return search_states
+            // no state parsed - set state to search_states
             states = o.opts.search_states;
         }
         
         // return results
-        return { "term":term, "states":states };
+        return { term:term, states:states };
     };
     
     //................
@@ -401,25 +487,22 @@ search_api.create = function( id, opts ) {
         
         // data types already checked
         // check values - reset to default if problem
-        if ( o.opts.lat_min          <  -90 || o.opts.lat_min          >  90 ) { search_api._console(funcName+"invalid 'lat_min' option ("+o.opts.lat_min+"): value must be between -90 and 90 degrees, inclusive - default used",         "warn");  nWarn++;  o.opts.lat_min          = search_api._opt_default.lat_min;          }
-        if ( o.opts.lat_max          <  -90 || o.opts.lat_max          >  90 ) { search_api._console(funcName+"invalid 'lat_max' option ("+o.opts.lat_max+"): value must be between -90 and 90 degrees, inclusive - default used",         "warn");  nWarn++;  o.opts.lat_max          = search_api._opt_default.lat_max;          }
-        if ( o.opts.lon_min          < -180 || o.opts.lon_min          > 180 ) { search_api._console(funcName+"invalid 'lon_min' option ("+o.opts.lon_min+"): value must be between -180 and 180 degrees, inclusive - default used",       "warn");  nWarn++;  o.opts.lon_min          = search_api._opt_default.lon_min;          }
-        if ( o.opts.lon_max          < -180 || o.opts.lon_max          > 180 ) { search_api._console(funcName+"invalid 'lon_max' option ("+o.opts.lon_max+"): value must be between -180 and 180 degrees, inclusive - default used",       "warn");  nWarn++;  o.opts.lon_max          = search_api._opt_default.lon_max;          }
-        if ( o.opts.lat_min          > o.opts.lat_max                        ) { search_api._console(funcName+"'lat_min' option must be less than 'lat_max' - defaults for both used",                                                     "warn");  nWarn++;  o.opts.lat_min          = search_api._opt_default.lat_min;  o.opts.lat_max = search_api._opt_default.lat_max; }
-        if ( o.opts.lon_min          > o.opts.lon_max                        ) { search_api._console(funcName+"'lon_min' option must be less than 'lon_max' - defaults for both used",                                                     "warn");  nWarn++;  o.opts.lon_min          = search_api._opt_default.lon_min;  o.opts.lon_max = search_api._opt_default.lon_max; }
-        if ( o.opts.menu_min_char    <    1                                  ) { search_api._console(funcName+"invalid 'menu_min_char' option ("+o.opts.menu_min_char+"): value must be at least 1 - default used",                        "warn");  nWarn++;  o.opts.menu_min_char    = search_api._opt_default.menu_min_char;    }
-        if ( o.opts.menu_max_entries <    1                                  ) { search_api._console(funcName+"invalid 'menu_max_entries' option ("+o.opts.menu_max_entries+"): value must be at least 1 - default used",                  "warn");  nWarn++;  o.opts.menu_max_entries = search_api._opt_default.menu_max_entries; }
-        if ( o.opts.menu_height      <    0                                  ) { search_api._console(funcName+"invalid 'menu_height' option ("+o.opts.menu_height+"): value must be greater or equal to 0 - default used",                 "warn");  nWarn++;  o.opts.menu_height      = search_api._opt_default.menu_height;      }
-        if ( o.opts.fuzzy_percent    <    0 || o.opts.fuzzy_percent    > 100 ) { search_api._console(funcName+"invalid 'fuzzy_percent' option ("+o.opts.fuzzy_percent+"): value must be between 0 and 100, inclusive - default used",      "warn");  nWarn++;  o.opts.fuzzy_percent    = search_api._opt_default.fuzzy_percent;    }
-        if ( o.opts.geocoder_timeout <=   0                                  ) { search_api._console(funcName+"invalid 'geocoder_timeout' option ("+o.opts.geocoder_timeout+"): value must be greater than 0 - default used",              "warn");  nWarn++;  o.opts.geocoder_timeout = search_api._opt_default.geocoder_timeout; }
-        if ( o.opts.geocoder_percent <    0 || o.opts.geocoder_percent > 100 ) { search_api._console(funcName+"invalid 'geocoder_percent' option ("+o.opts.geocoder_percent+"): value must be between 0 and 100, inclusive - default used","warn");  nWarn++;  o.opts.geocoder_percent = search_api._opt_default.geocoder_percent; }
-        if ( $.inArray(o.opts.size,["lg","md","sm","xs"]) <= -1              ) { search_api._console(funcName+"invalid 'size' option ('"+o.opts.size+"'): string must be one of 'lg','md','sm', or 'xs' - default used",                   "warn");  nWarn++;  o.opts.size             = search_api._opt_default.size;             }
-        if ( o.opts.width            <    0                                  ) { search_api._console(funcName+"invalid 'width' option ("+o.opts.width+"): value must be greater or equal to 0 - default used",                             "warn");  nWarn++;  o.opts.width            = search_api._opt_default.width;            }
+        if ( o.opts.lat_min          <  -90 || o.opts.lat_min >  90 ) { search_api._console(funcName+"invalid 'lat_min' option ("+o.opts.lat_min+"): value must be between -90 and 90 degrees, inclusive - default used",         "warn");  nWarn++;  o.opts.lat_min          = search_api._opt_default.lat_min;          }
+        if ( o.opts.lat_max          <  -90 || o.opts.lat_max >  90 ) { search_api._console(funcName+"invalid 'lat_max' option ("+o.opts.lat_max+"): value must be between -90 and 90 degrees, inclusive - default used",         "warn");  nWarn++;  o.opts.lat_max          = search_api._opt_default.lat_max;          }
+        if ( o.opts.lon_min          < -180 || o.opts.lon_min > 180 ) { search_api._console(funcName+"invalid 'lon_min' option ("+o.opts.lon_min+"): value must be between -180 and 180 degrees, inclusive - default used",       "warn");  nWarn++;  o.opts.lon_min          = search_api._opt_default.lon_min;          }
+        if ( o.opts.lon_max          < -180 || o.opts.lon_max > 180 ) { search_api._console(funcName+"invalid 'lon_max' option ("+o.opts.lon_max+"): value must be between -180 and 180 degrees, inclusive - default used",       "warn");  nWarn++;  o.opts.lon_max          = search_api._opt_default.lon_max;          }
+        if ( o.opts.lat_min          > o.opts.lat_max               ) { search_api._console(funcName+"'lat_min' option must be less than 'lat_max' - defaults for both used",                                                     "warn");  nWarn++;  o.opts.lat_min          = search_api._opt_default.lat_min;  o.opts.lat_max = search_api._opt_default.lat_max; }
+        if ( o.opts.lon_min          > o.opts.lon_max               ) { search_api._console(funcName+"'lon_min' option must be less than 'lon_max' - defaults for both used",                                                     "warn");  nWarn++;  o.opts.lon_min          = search_api._opt_default.lon_min;  o.opts.lon_max = search_api._opt_default.lon_max; }
+        if ( o.opts.menu_min_char    <    1                         ) { search_api._console(funcName+"invalid 'menu_min_char' option ("+o.opts.menu_min_char+"): value must be at least 1 - default used",                        "warn");  nWarn++;  o.opts.menu_min_char    = search_api._opt_default.menu_min_char;    }
+        if ( o.opts.menu_max_entries <    1                         ) { search_api._console(funcName+"invalid 'menu_max_entries' option ("+o.opts.menu_max_entries+"): value must be at least 1 - default used",                  "warn");  nWarn++;  o.opts.menu_max_entries = search_api._opt_default.menu_max_entries; }
+        if ( o.opts.menu_height      <    0                         ) { search_api._console(funcName+"invalid 'menu_height' option ("+o.opts.menu_height+"): value must be greater or equal to 0 - default used",                 "warn");  nWarn++;  o.opts.menu_height      = search_api._opt_default.menu_height;      }
+        if ( $.inArray(o.opts.size,["lg","md","sm","xs"]) <= -1     ) { search_api._console(funcName+"invalid 'size' option ('"+o.opts.size+"'): string must be one of 'lg','md','sm', or 'xs' - default used",                   "warn");  nWarn++;  o.opts.size             = search_api._opt_default.size;             }
+        if ( o.opts.width            <    0                         ) { search_api._console(funcName+"invalid 'width' option ("+o.opts.width+"): value must be greater or equal to 0 - default used",                             "warn");  nWarn++;  o.opts.width            = search_api._opt_default.width;            }
         
-        // search_states check is more elaborate...
+        // search_states check is more elaborate
         o.opts.search_states = o.opts.search_states.replace(/\s+/g,"").toUpperCase();
         $.each( o.opts.search_states.split(","), function(idx,state) {
-            if ( $.inArray( state, search_api._all_states.concat("ALL") )<=-1 ) {
+            if ( $.inArray( state, search_api._stateAbbrevs.concat("ALL") )<=-1 ) {
                 // invalid state
                 o.opts.search_states = search_api._opt_default.search_states.toUpperCase();
                 search_api._console(funcName+"1 or more 'search_states' is not a valid 2-character State or Territory abbreviation - default used", "warn");
@@ -554,12 +637,12 @@ search_api.create = function( id, opts ) {
         // add faeture for each menu item
         $.each( o._getMenu().find(".search-api-menu-item"), function(idx,item) {
             geojson.features.push({
-                "type"     : "Feature",
-                "geometry" : {
-                    "type"        : "Point",
-                    "coordinates" : [ $(item).data("properties").Lon, $(item).data("properties").Lat ]
+                type     : "Feature",
+                geometry : {
+                    type        : "Point",
+                    coordinates : [ $(item).data("properties").Lon, $(item).data("properties").Lat ]
                 },
-                "properties" : $(item).data("properties")
+                properties : $(item).data("properties")
             });
         });
         return geojson;
@@ -572,12 +655,13 @@ search_api.create = function( id, opts ) {
         var funcName = "[destroy "+this.id+"]: ";
         // disconnect listeners
         $(window).off( "resize.search_api_"+this.id );
-        this._getTextbox().add( this._getButton() ).add( this._getMenu() ).off(".search_api");
+        this._getTextbox().add( this._getIcon() ).add( this._getMenu() ).off(".search_api");
         // remove menu
         this._getMenu().remove();
         // clear widget element
         $(this.id).empty();
         // clear widget obj
+        delete search_api._widgets[this.id];
         var temp = this;
         $.each(temp,function(prop,val){
             delete temp[prop];
@@ -620,6 +704,9 @@ search_api.create = function( id, opts ) {
 //   widget object
 search_api._setup = function(o) {
     
+    //..............................
+    // textbox and container
+    
     // set some text box options:
     o._getTextbox()
         .attr( "placeholder", o.opts.placeholder )
@@ -632,47 +719,15 @@ search_api._setup = function(o) {
         .css({ width: (o.opts.width>0 ? o.opts.width+"px" : "") });
     
     //..............................
-    // set up search button (secondary search)
+    // suggestion menu
     
-    // text box event listeners
-    o._getTextbox()
-        .off("keyup.search_api")
-        .on( "keyup.search_api", function(e) {
-            // enable-disable search button
-            if ( $.trim(o.val()) === "" ) {
-                // no text - disable search button
-                o._getButton().removeClass("search-api-button-active");
-                
-            } else if ( o.opts.enable_menu===false ) {
-                // have text and menu disabled - enable search button
-                o._getButton().addClass("search-api-button-active");
-            }
-            // click search button on enter
-            if (e.which === 13) { o._getButton().click(); }
-        });
-    
-    // search button event listeners
-    o._getButton()
-        .off("click.search_api")
-        .on( "click.search_api", function() {
-            // do secondary search if button active 
-            if ( $(this).is(".search-api-button-active") ) { search_api._geocode(o); }
-        });
-    
-    
-    // done if no auto complete menu
-    if ( o.opts.enable_menu === false ) { return o; }
-    
-    //..............................
-    // setup auto complete menu (primary search)
+    // clear cache
+    o._menu.cache = {};
     
     // set size option
     o._getMenu()
         .removeClass("search-api-lg search-api-md search-api-sm search-api-xs")
         .addClass( "search-api-"+o.opts.size );
-    
-    // clear cache
-    o._menu.cache = {};
     
     // function to set menu position
     o._menu.position = function() {
@@ -696,10 +751,10 @@ search_api._setup = function(o) {
         }
         o._getMenu()
             .css({
-                "left"   : o._getTextbox().offset().left - o._getButton().outerWidth(),
-                "width"  : o._getButton().outerWidth() + o._getTextbox().outerWidth() + o._getSpinner().outerWidth(),
-                "top"    : cssTop,
-                "bottom" : cssBot
+                left   : o._getTextbox().offset().left - o._getIcon().outerWidth(),
+                width  : o._getIcon().outerWidth() + o._getTextbox().outerWidth() + o._getSpinner().outerWidth(),
+                top    : cssTop,
+                bottom : cssBot
             })
             .removeClass("search-api-menu-down search-api-menu-up")
             .addClass( addClass )
@@ -727,26 +782,32 @@ search_api._setup = function(o) {
     
     // function to update menu with suggestions
     //   term - search term to use for item regex highlighting
-    //   data - array of results for each menu item
+    //   data - array of results, each element is a menu item
     o._menu.update = function( term, data ) {
-        
-        // clear classes
-        o._getButton( ).removeClass("search-api-button-active");
-        o._getTextbox().removeClass("search-api-have-suggestions search-api-no-suggestions");
         
         // see if no items
         if (data.length<=0) {
-            o._closeMenu();                                        // close menu
-            o._getButton( ).addClass("search-api-button-active" ); // activate search button
             o._getTextbox().addClass("search-api-no-suggestions"); // set text box class
+            o._closeMenu();                                        // close menu
             return;
         }
         
         // have items
         o._getTextbox().addClass("search-api-have-suggestions");
         
+        // clear menu and add wrapper content
+        o._getMenu().html(
+            // title bar
+            '<div class="search-api-menu-title">' +
+                (data.length>=o.opts.menu_max_entries ? 'Top ' : '') + data.length+' Results' +
+                '<div class="search-api-menu-close" onclick="search_api._widgets[ $(this).closest(\'.search-api-menu\').data(\'id\') ]._closeMenu();">&#10006;</div>' +
+            '</div>' +
+            // content containing items
+            '<div class="search-api-menu-content"></div>'
+        );
+        
         // regex for highlighting search term in item
-        // note: regex syntax with arbitrary search term can cause error
+        // regex on term with special regex characters can cause error
         var regex;
         try { 
             // all space-separated parts of term occurring in item name are highlighted
@@ -756,25 +817,12 @@ search_api._setup = function(o) {
             regex = new RegExp("()");
         }
         
-        // clear menu and add wrapper content
-        o._getMenu().html(
-            // title bar
-            '<div class="search-api-menu-title">' +
-                (data.length>=o.opts.menu_max_entries ? 'Top ' : '') + data.length+' Results' +
-                '<div class="search-api-menu-close" onclick="$(this).closest(\'.search-api-menu\').stop().fadeOut(200,function(){$(this).empty();});"></div>' +
-            '</div>' +
-            // scrollable content
-            '<div class="search-api-menu-content">' +
-                // items to add
-            '</div>'
-        );
-        
-        // add items
-        var curr_cat  = "X";
+        // add items to content
+        var curr_cat = "X";
         $.each( data, function(idx,item) {
             // add category separator if new category
             if (item.Category !== curr_cat) {
-                $('<div class="search-api-menu-separator">' + item.Category + '</div>').appendTo( o._getMenu().find(".search-api-menu-content") );
+                $('<div class="search-api-menu-separator">' + item.Category + (item.PercentMatch!==100 ? " (Closest Matches)" : "") + '</div>').appendTo( o._getMenu().find(".search-api-menu-content") );
                 curr_cat = item.Category;
             }
             // add item with name regex highlighted and data properties added
@@ -782,6 +830,7 @@ search_api._setup = function(o) {
                 '<div class="search-api-menu-item">' +
                     item.Name.replace( regex, '<span class="search-api-menu-item-highlight">$1</span>' ) + // 1st line: name
                     ( item.County!=="N/A"&&item.State!=="N/A" ? ' <br/><span class="search-api-menu-item-info">' + item.County + ", " + item.State + '</span>' : "" ) + // 2nd line: county, state
+                    ( item.PercentMatch!==100                 ? ' <br/><span class="search-api-menu-item-info">' + item.PercentMatch  + '% match'              : "" ) + // 3rd line: percent match if not 100%
                 '</div>'
             ).data("properties",item).appendTo( o._getMenu().find(".search-api-menu-content") );
         });
@@ -798,159 +847,31 @@ search_api._setup = function(o) {
         o.trigger("update");             // trigger event
     };
     
+    //..............................
     // text box event listeners
     o._getTextbox()
         .off("blur.search_api")
         .on( "blur.search_api", function(){
-            // close menu when text box looses focus
+            // close menu when text box loses focus
             o._closeMenu();
             
         })
-        // do not .off keyup - append to existing connected above
-        .on( "keyup.search_api", function(e) {
-            // keyup updates menu
-            var funcName = "[autocomplete "+o.id+"]: ";
-            
-            // do nothing if these keys pressed
-            if ( $.inArray(e.which, [13, 27, 33, 34, 35, 36, 37, 38, 39, 40]) > -1 ) { return; }
-            
-            // cancel any previous timer and service call still in progress
-            clearTimeout(o._menu.timer);
-            try { o._menu.xhr.abort(); } catch(e){}
-            
-            // see if enough characters
-            if ( $.trim( o._getTextbox().val() ).length < o.opts.menu_min_char ) {
-                o._getTextbox().removeClass("search-api-have-suggestions search-api-no-suggestions");
-                o._closeMenu();
-                return;
-            }
-            
-            // trigger on_search
-            o.trigger("search");
-            
-            // get filtered search 'term' and search 'states' to use
-            var term_states   = o._getSearchTermStates();
-            var search_term   = term_states.term;
-            var search_states = term_states.states;
-            
-            // see if lat-lon
-            var lat_lon = search_term.split(/\s/);
-            if (lat_lon.length<2) { lat_lon.push("X"); } // make at least 2 elements
-            var ok  = true;
-            var lat =           parseFloat(lat_lon[0]) ;  if (isNaN(lat) || lat < o.opts.lat_min || lat > o.opts.lat_max ) { ok = false; } // check
-            var lon = -Math.abs(parseFloat(lat_lon[1]));  if (isNaN(lon) || lon < o.opts.lon_min || lon > o.opts.lon_max ) { ok = false; } // check - always make lon negative (western hemisphere)
-            if (ok) {
-                // valid - return
-                search_api._console(funcName+"parsed as lat-lon");
-                o._menu.update( search_term, [{
-                    "Id"           : null,
-                    "Category"     : "Latitude-Longitude Coordinate",
-                    "Label"        : "Coordinate "+lat+", "+lon,
-                    "Name"         : "Coordinate "+lat+", "+lon,
-                    "County"       : "N/A",
-                    "State"        : "N/A",
-                    "ElevFt"       : "N/A",
-                    "GnisId"       : "N/A",
-                    "Lat"          : lat,
-                    "Lon"          : lon,
-                    "LatMin"       : lat - 1e-6,
-                    "LatMax"       : lat + 1e-6,
-                    "LonMin"       : lon - 1e-6,
-                    "LonMax"       : lon + 1e-6,
-                    "PercentMatch" : 100,
-                    "Source"       : "LAT_LON"
-                }] );
-                return;
-            }
-            
-            // see if in cache
-            var term_cache = search_term + "|" + search_states;
-            if (term_cache in o._menu.cache) {
-                search_api._console(funcName+"cached value used");
-                o._menu.update( search_term, o._menu.cache[term_cache] );
-                return;
-            }
-            
-            // no new request if character added to old request that had no results
-            for (var n=term_cache.split("|")[0].length-1; n>o.opts.menu_min_char; n--) {
-                var term_substr = term_cache.substr(0,n) + "|" + search_states;
-                if (term_substr in o._menu.cache && o._menu.cache[term_substr].length<=0) {
-                    search_api._console(funcName+"characters added to cached response that had no results");
-                    o._menu.update( search_term, [] );
-                    return;
-                }
-            }
-            
-            // new service request after delay
-            o._menu.timer = setTimeout( function() {
-                
-                // show spinner
-                o._getSpinner().removeClass("search-api-spinner-hidden");
-                
-                // service request
-                search_api._console(funcName+"calling api data service - search term '"+search_term+"'");
-                if ($.support) { $.support.cors = true; } // need for IE
-                o._menu.xhr = $.ajax({ 
-                    "url"  : search_api._apiServiceUrl,
-                    "data" : {
-                        term               : search_term,
-                        search_states      : search_states,
-                        lat_min            : o.opts.lat_min,
-                        lat_max            : o.opts.lat_max,
-                        lon_min            : o.opts.lon_min,
-                        lon_max            : o.opts.lon_max,
-                        include_gnis_major : o.opts.include_gnis_major,
-                        include_gnis_minor : o.opts.include_gnis_minor,
-                        include_state      : o.opts.include_state,
-                        include_zip_code   : o.opts.include_zip_code,
-                        include_area_code  : o.opts.include_area_code,
-                        include_usgs_sw    : o.opts.include_usgs_sw,
-                        include_usgs_gw    : o.opts.include_usgs_gw,
-                        include_usgs_sp    : o.opts.include_usgs_sp,
-                        include_usgs_at    : o.opts.include_usgs_at,
-                        include_usgs_ot    : o.opts.include_usgs_ot,
-                        include_huc2       : o.opts.include_huc2,
-                        include_huc4       : o.opts.include_huc4,
-                        include_huc6       : o.opts.include_huc6,
-                        include_huc8       : o.opts.include_huc8,
-                        include_huc10      : o.opts.include_huc10,
-                        include_huc12      : o.opts.include_huc12,
-                        enable_fuzzy       : o.opts.enable_fuzzy,
-                        fuzzy_percent      : o.opts.fuzzy_percent,
-                        top_n              : o.opts.menu_max_entries,
-                        caller             : search_api._caller
-                    },
-                    "type"     : "GET",
-                    "dataType" : "json",
-                    "async"    : true,
-                    "cache"    : true,
-                    "timeout"  : 3000, // adjust service call timeout as needed
-                    
-                    "success": function( data, status, xhr ) {
-                        // check
-                        if (data.error       !== undefined) { search_api._console(funcName+"service call for search term '"+search_term+"' returned error: "+data.error,    "warn"); return; }
-                        if (data.constructor !== Array    ) { search_api._console(funcName+"service call for search term '"+search_term+"' did not return array of results","warn"); return; }
-                        // ok
-                        search_api._console(funcName+"service call for search term '"+search_term+"' returned "+data.length+" results");
-                        o._menu.update( search_term, data ); // update menu with results
-                        o._menu.cache[term_cache] = data;    // save to cache
-                    },
-                    
-                    "error": function(status) {
-                        // log error if call wasn't aborted on purpose
-                        if ( status.statusText.toLowerCase() !== "abort" ) {
-                            search_api._console(funcName+"api data service error: "+status.statusText,"warn");
-                        }
-                    },
-                    
-                    "complete": function() {
-                        // hide spinner
-                        o._getSpinner().addClass("search-api-spinner-hidden");
-                    }
-                });
-                
-            }, 50 ); // adjust delay before service call as needed
-            
+        .off("keyup.search_api  input.search_api  propertychange.search_api  paste.search_api")
+        .on( "keyup.search_api  input.search_api  propertychange.search_api  paste.search_api", function(e) {
+            if ( $.inArray(e.which, [
+                // do nothing if these keys pressed:
+                13, // enter
+                27, // escape
+                33, // page up
+                34, // page down
+                35, // end
+                36, // home
+                37, // left arrow
+                38, // up arrow
+                39, // right arrow
+                40  // down arrow
+            ]) > -1 ) { return; }
+            search_api._search(o); // perform search
         })
         .off("keydown.search_api")
         .on( "keydown.search_api", function(e){
@@ -1005,6 +926,7 @@ search_api._setup = function(o) {
             }
         });
     
+    //..............................
     // menu event listeners
     o._getMenu()
         .off("mouseenter.search_api")
@@ -1027,12 +949,12 @@ search_api._setup = function(o) {
             
             // set result geojson
             o.result = {
-                "type"    : "Feature",
-                "geometry": {
-                    "type"       : "Point",
-                    "coordinates": [ $(this).data("properties").Lon, $(this).data("properties").Lat ]
+                type    : "Feature",
+                geometry: {
+                    type       : "Point",
+                    coordinates: [ $(this).data("properties").Lon, $(this).data("properties").Lat ]
                 },
-                "properties": $(this).data("properties")
+                properties: $(this).data("properties")
             };
             
             // close menu and clear text box
@@ -1044,6 +966,11 @@ search_api._setup = function(o) {
             
         });
     
+    //..............................
+    // save api widget for later access
+    if (search_api._widgets===undefined) { search_api._widgets = {}; }
+    search_api._widgets[o.id] = o;
+    
     // return widget
     return o;
     
@@ -1051,273 +978,305 @@ search_api._setup = function(o) {
 
 
 //-----------------------------------------------------------
-// _geocode
-//   execute secondary geocoding service
-//
-// input:
-//   widget object
-//
-// output:
-//   (none)
-search_api._geocode = function(o) {
-    var funcName = "[_geocode "+o.id+"]: ";
+// _search
+//   main search function
+//   calls primary api service
+//   if no results returned by api service calls secondary service
+search_api._search = function(o) {
+    var funcName = "[_search "+o.id+"]: ";
     
-    // do nothing if disabled
-    if ( !o.isEnabled() ) { return; }
+    // multiple textbox event triggers to handle all cases can call this repeatedly for same search text
+    // do nothing if triggered multiple times for same search text
+    if ( o._getTextbox().val() === o._menu.currentSearchVal ) { return; }
+    o._menu.currentSearchVal = o._getTextbox().val();
+    
+    // cancel any previous timer and service calls still in progress
+    clearTimeout(o._menu.timer);
+    try { o._menu.xhr1.abort(); } catch(e){}
+    try { o._menu.xhr2.abort(); } catch(e){}
+    
+    // clear text box classes
+    o._getTextbox().removeClass("search-api-have-suggestions search-api-no-suggestions");
+    
+    // see if enough characters
+    if ( $.trim( o._getTextbox().val() ).length < o.opts.menu_min_char ) {
+        search_api._console(funcName+"not enough characters entered to search (at least "+o.opts.menu_min_char+" needed)");
+        o._closeMenu();
+        return;
+    }
     
     // trigger on_search
     o.trigger("search");
-    
-    // disable and show spinner
-    o.enable(false)._getSpinner().removeClass("search-api-spinner-hidden");
     
     // get filtered search 'term' and search 'states' to use
     var term_states   = o._getSearchTermStates();
     var search_term   = term_states.term;
     var search_states = term_states.states;
     
-    // array of allowed states (results with state other than these rejected)
-    var OkStates = search_states.split(",");
-    if (OkStates[0] === "ALL") { OkStates = search_api._all_states; } // reset to all array if 'all'
+    // see if lat-lon
+    var lat_lon = search_term.split(/\s/);
+    if (lat_lon.length<2) { lat_lon.push("X"); } // make at least 2 elements
+    var ok  = true;
+    var lat =           parseFloat(lat_lon[0]) ;  if (isNaN(lat) || lat < o.opts.lat_min || lat > o.opts.lat_max ) { ok = false; } // check
+    var lon = -Math.abs(parseFloat(lat_lon[1]));  if (isNaN(lon) || lon < o.opts.lon_min || lon > o.opts.lon_max ) { ok = false; } // check - always make lon negative (western hemisphere)
+    if (ok) {
+        // valid - return
+        search_api._console(funcName+"parsed as lat-lon");
+        o._menu.update( search_term, [{
+            Id           : null,
+            Category     : "Latitude-Longitude Coordinate",
+            Label        : "Coordinate "+lat+", "+lon,
+            Name         : "Coordinate "+lat+", "+lon,
+            County       : "N/A",
+            State        : "N/A",
+            ElevFt       : "N/A",
+            GnisId       : "N/A",
+            Lat          : lat,
+            Lon          : lon,
+            LatMin       : lat - 1e-6,
+            LatMax       : lat + 1e-6,
+            LonMin       : lon - 1e-6,
+            LonMax       : lon + 1e-6,
+            PercentMatch : 100,
+            Source       : "LAT_LON"
+        }] );
+        return;
+    }
     
-    // array of allowed result types (results with type other than these rejected)
-    var OkTypes = [
-        // ...like GNIS feature classes primary search uses...
-        "STATE OR PROVINCE",
-        "COUNTY",
-        "CITY",
-        "OTHER POPULATED PLACE",
-        "STATE CAPITAL",
-        "NATIONAL CAPITAL",
-        "STREAM",
-        "CANAL",
-        "CHANNEL",
-        "LAKE",
-        "RESERVOIR",
-        "CAPE",
-        "BAY",
-        "BASIN",
-        "DAM",
-        "WATERFALL",
-        "MARINA",
-        "OTHER WATER FEATURE",
-        "SPRING",
-        "PARK",
-        // ...not like GNIS but allowed...
-        "MUSEUM",
-        "HOSPITAL",
-        "SCHOOL",
-        "HISTORICAL MONUMENT",
-        "RUIN",
-        "AIRPORT",
-        "SPORTS CENTER",
-        "TOURIST ATTRACTION",
-        "AMUSEMENT PARK",
-        "MILITARY BASE",
-        "POLICE STATION",
-        // ...street addresses have type ""...
-        ""
-        // ...more...
-    ];
+    // see if in cache
+    var term_cache = search_term + "|" + search_states;
+    if (term_cache in o._menu.cache) {
+        search_api._console(funcName+"cached value used");
+        o._menu.update( search_term, o._menu.cache[term_cache] );
+        return;
+    }
     
-    // long state name to abbreviation lookup
-    var long2short = {
-        "ALASKA"               : "AK",
-        "HAWAII"               : "HI",
-        "PUERTO RICO"          : "PR",
-        "ALABAMA"              : "AL",
-        "ARKANSAS"             : "AR",
-        "ARIZONA"              : "AZ",
-        "CALIFORNIA"           : "CA",
-        "COLORADO"             : "CO",
-        "CONNECTICUT"          : "CT",
-        "WASHINGTON, D.C."     : "DC",
-        "DISTRICT OF COLUMBIA" : "DC",
-        "DELAWARE"             : "DE",
-        "FLORIDA"              : "FL",
-        "GEORGIA"              : "GA",
-        "IOWA"                 : "IA",
-        "IDAHO"                : "ID",
-        "ILLINOIS"             : "IL",
-        "INDIANA"              : "IN",
-        "KANSAS"               : "KS",
-        "KENTUCKY"             : "KY",
-        "LOUISIANA"            : "LA",
-        "MASSACHUSETTS"        : "MA",
-        "MARYLAND"             : "MD",
-        "MAINE"                : "ME",
-        "MICHIGAN"             : "MI",
-        "MINNESOTA"            : "MN",
-        "MISSOURI"             : "MO",
-        "MISSISSIPPI"          : "MS",
-        "MONTANA"              : "MT",
-        "NORTH CAROLINA"       : "NC",
-        "NORTH DAKOTA"         : "ND",
-        "NEBRASKA"             : "NE",
-        "NEW HAMPSHIRE"        : "NH",
-        "NEW JERSEY"           : "NJ",
-        "NEW MEXICO"           : "NM",
-        "NEVADA"               : "NV",
-        "NEW YORK"             : "NY",
-        "OHIO"                 : "OH",
-        "OKLAHOMA"             : "OK",
-        "OREGON"               : "OR",
-        "PENNSYLVANIA"         : "PA",
-        "RHODE ISLAND"         : "RI",
-        "SOUTH CAROLINA"       : "SC",
-        "SOUTH DAKOTA"         : "SD",
-        "TENNESSEE"            : "TN",
-        "TEXAS"                : "TX",
-        "UTAH"                 : "UT",
-        "VIRGINIA"             : "VA",
-        "VERMONT"              : "VT",
-        "WASHINGTON"           : "WA",
-        "WISCONSIN"            : "WI",
-        "WEST VIRGINIA"        : "WV",
-        "WYOMING"              : "WY"
-    };
+    // // this will treat new characters added to a previous failure as a failure bypassing a new service request
+    // // do not do this when using esri because adding new characters to a failed request can return results
+    // // example: 'waashi' returns nothing, 'waashington' returns results
+    // for (var n=term_cache.split("|")[0].length-1; n>o.opts.menu_min_char; n--) {
+        // var term_substr = term_cache.substr(0,n) + "|" + search_states;
+        // if (term_substr in o._menu.cache && o._menu.cache[term_substr].length<=0) {
+            // search_api._console(funcName+"characters added to cached response that had no results");
+            // o._menu.update( search_term, [] );
+            // return;
+        // }
+    // }
     
-    // call service
-    // documentation: https://developers.arcgis.com/rest/geocode/api-reference/overview-world-geocoding-service.htm
-    search_api._console(funcName+"calling secondary geocoding service to search for '"+search_term+"'");
-    var haveResult = false;
-    if ($.support) { $.support.cors = true; } // need for IE
-    $.ajax({
-        "url"  : search_api._esriServiceUrl,
-        "data" : {
-            "f"            : "json", // required
-            "singleLine"   : search_term,
-            "CountryCode"  : "USA",
-            "Region"       : ( OkStates.join(",").length<50 ? OkStates.join(",") : "" ), // NOTE: addresses not returned if Regions not ""
-            "searchExtent" : [o.opts.lon_min, o.opts.lat_min, o.opts.lon_max, o.opts.lat_max].join(","),
-            "maxLocations" : 50,
-            "outFields"    : [
-                "Type",      // Category
-                "Region",    // State (long name)
-                "Subregion", // County
-                "X",         // Lon
-                "Y",         // Lat
-                "Loc_name"   // Source
-            ].join(",")
-        },
-        "type"     : "GET",
-        "dataType" : "json",
-        "async"    : true,
-        "cache"    : true,
-        "timeout"  : o.opts.geocoder_timeout*1000,
+    // new search after delay
+    o._menu.timer = setTimeout( function() {
         
-        "success" : function (json) {
-            
-            // make sure valid
-            if (json.candidates === undefined) { search_api._console(funcName+"bad service response (no candidate field)","warn"); return; }
-            if (json.candidates.length <= 0  ) { search_api._console(funcName+"no results returned");                              return; }
-            search_api._console(funcName+json.candidates.length+" results returned");
-            
-            // loop though candidate results
-            $.each(json.candidates, function(idx,candidate) {
+        // show spinner
+        o._getSpinner().removeClass("search-api-spinner-hidden");
+        
+        // primary source: api service request
+        search_api._console(funcName+"calling api data service: '"+search_term+"'");
+        var results = [];
+        if ($.support) { $.support.cors = true; } // need for IE
+        o._menu.xhr1 = $.ajax({
+            url  : search_api._apiServiceUrl,
+            data : {
+                term               : search_term,
+                search_states      : search_states,
+                lat_min            : o.opts.lat_min,
+                lat_max            : o.opts.lat_max,
+                lon_min            : o.opts.lon_min,
+                lon_max            : o.opts.lon_max,
+                include_gnis_major : o.opts.include_gnis_major,
+                include_gnis_minor : o.opts.include_gnis_minor,
+                include_state      : o.opts.include_state,
+                include_zip_code   : o.opts.include_zip_code,
+                include_area_code  : o.opts.include_area_code,
+                include_usgs_sw    : o.opts.include_usgs_sw,
+                include_usgs_gw    : o.opts.include_usgs_gw,
+                include_usgs_sp    : o.opts.include_usgs_sp,
+                include_usgs_at    : o.opts.include_usgs_at,
+                include_usgs_ot    : o.opts.include_usgs_ot,
+                include_huc2       : o.opts.include_huc2,
+                include_huc4       : o.opts.include_huc4,
+                include_huc6       : o.opts.include_huc6,
+                include_huc8       : o.opts.include_huc8,
+                include_huc10      : o.opts.include_huc10,
+                include_huc12      : o.opts.include_huc12,
+                top_n              : o.opts.menu_max_entries,
+                caller             : search_api._caller
+            },
+            type     : "GET",
+            dataType : "json",
+            async    : true,
+            cache    : true,
+            timeout  : 3000, // adjust as needed
+            success: function(json){
+                // api service success
+                // ...check
+                if (json.error       !== undefined) { search_api._console(funcName+"api service error: "+json.error,         "warn"); return; }
+                if (json.constructor !== Array    ) { search_api._console(funcName+"invalid api service response: not array","warn"); return; }
+                // ...ok - set results
+                results = json;
+            },
+            error: function(xhr,x,xx) {
+                // api service error
+                // ...log error if call wasn't aborted on purpose
+                if ( xhr.statusText.toLowerCase() !== "abort" ) {
+                    search_api._console(funcName+"api service error: "+xhr.statusText,"warn");
+                }
+            },
+            complete: function() {
+                // api service complete
                 
-                // check:
-                if (
-                    candidate.address         === undefined ||
-                    candidate.score           === undefined || isNaN(parseFloat(candidate.score)) || candidate.score < o.opts.geocoder_percent ||
-                    candidate.attributes      === undefined ||
-                    candidate.attributes.Type === undefined || $.inArray( candidate.attributes.Type.toUpperCase(), OkTypes )<0 ||
-                    candidate.attributes.X    === undefined || candidate.attributes.X < o.opts.lon_min || candidate.attributes.X > o.opts.lon_max ||
-                    candidate.attributes.Y    === undefined || candidate.attributes.Y < o.opts.lat_min || candidate.attributes.Y > o.opts.lat_max
-                ) {
-                    return true; // skip
+                // see if have api results
+                if (results.length > 0) {
+                    search_api._console(funcName+"api service returned "+results.length+" results");
+                    o._getSpinner().addClass("search-api-spinner-hidden"); // hide spinner
+                    o._menu.update( search_term, results );                // update menu with results
+                    o._menu.cache[term_cache] = results;                   // save to cache
+                    return;                                                // done
                 }
                 
-                // convert long state name to abbreviation
-                var state = long2short[ candidate.attributes.Region.toUpperCase() ];
-                
-                // reject if didn't convert or not in allowed list
-                if (state===undefined || $.inArray(state,OkStates)<0) { return true; }
-                
-                // OK
-                search_api._console(funcName+"found OK match (locater service '" + candidate.attributes.Loc_name+"')");
-                
-                // clean up attributes
-                $.each( candidate.attributes, function(name,val) {
-                    val = $.trim(val);
-                    if (val==="") { val = "N/A"; }
-                    candidate.attributes[name] = val;
-                });
-                if (candidate.attributes.Subregion!=="N/A" && !/ County/i.test(candidate.attributes.Subregion)) { candidate.attributes.Subregion += " County"; }
-                
-                // set result geojson
-                o.result = {
-                    "type"    : "Feature",
-                    "geometry": {
-                        "type"       : "Point",
-                        "coordinates": [ parseFloat(candidate.attributes.X), parseFloat(candidate.attributes.Y) ]
+                // no api results - secondary service request
+                // note on esri service: addresses not returned if Regions (states) specified
+                search_api._console(funcName+"api service returned no results - calling secondary service");
+                o._menu.xhr2 = $.ajax({
+                    url  : search_api._2ndServiceUrl,
+                    data : {
+                        f            : "json", // required
+                        singleLine   : search_term,
+                        CountryCode  : "USA",
+                        searchExtent : [o.opts.lon_min, o.opts.lat_min, o.opts.lon_max, o.opts.lat_max].join(","),
+                        maxLocations : o.opts.menu_max_entries,
+                        outFields    : [
+                            "Type",      // Category
+                            "Region",    // State (long name)
+                            "Subregion", // County
+                            "X",         // Lon
+                            "Y",         // Lat
+                            "Loc_name"   // Source
+                        ].join(",")
                     },
-                    "properties": {
-                        "Id"           : null,
-                        "Category"     : candidate.attributes.Type,
-                        "Name"         : candidate.address.replace(/United States$/i,"").replace(/USA$/,"").replace(/\s+$/,"").replace(/,+$/,""),
-                        "County"       : candidate.attributes.Subregion,
-                        "State"        : state,
-                        "ElevFt"       : "N/A",
-                        "GnisId"       : "N/A",
-                        "Lat"          : parseFloat(candidate.attributes.Y),
-                        "Lon"          : parseFloat(candidate.attributes.X),
-                        "LatMin"       : candidate.extent.ymin,
-                        "LatMax"       : candidate.extent.ymax,
-                        "LonMin"       : candidate.extent.xmin,
-                        "LonMax"       : candidate.extent.xmax,
-                        "PercentMatch" : candidate.score,
-                        "Source"       : "GEOCODER:"+candidate.attributes.Loc_name
+                    type     : "GET",
+                    dataType : "json",
+                    async    : true,
+                    cache    : true,
+                    timeout  : 5*1000, // adjust as needed
+                    success : function (json) {
+                        // secondary service success
+                        
+                        // check
+                        if (json.candidates === undefined) { search_api._console(funcName+"invalid secondary service response: no candidate field","warn"); return; }
+                        search_api._console(funcName+"secondary service returned "+json.candidates.length+" total results");
+                        if (json.candidates.length<=0) { return; }
+                        
+                        // have results - filter
+                        var okStates  = search_states.split(",");  if (okStates[0]==="ALL"){ okStates = search_api._stateAbbrevs; }
+                        var resultObj = {};
+                        var addIds    = [];
+                        $.each(json.candidates, function(idx,result) {
+                            // check:
+                            if (
+                                result.address         === undefined ||
+                                result.score           === undefined || isNaN(parseFloat(result.score))      || result.score < 95                    || // percent match threshold - adjust as needed
+                                result.attributes      === undefined ||
+                                result.attributes.Type === undefined || $.inArray( result.attributes.Type.toUpperCase(), search_api._2ndOkTypes )<0  ||
+                                result.attributes.X    === undefined || result.attributes.X < o.opts.lon_min || result.attributes.X > o.opts.lon_max ||
+                                result.attributes.Y    === undefined || result.attributes.Y < o.opts.lat_min || result.attributes.Y > o.opts.lat_max
+                            ) {
+                                return true; // skip
+                            }
+                            
+                            // clean up attributes
+                            $.each( result.attributes, function(name,val) {
+                                val = $.trim(val);
+                                result.attributes[name] = ( val!=="" ? val : "N/A" );
+                            });
+                            
+                            // get state abbreviation, reject if none or not in allowed list
+                            var State = search_api._statesLong2short[ result.attributes.Region.toUpperCase() ];
+                            if (State===undefined || $.inArray(State,okStates)<0) { return true; }
+                            
+                            // get county, reject if none and add County at end
+                            var County = result.attributes.Subregion;
+                            if (County==="N/A") { return true; }
+                            if (!/ County/i.test(County)) { County += " County"; }
+                            
+                            // set category and name
+                            if (result.attributes.Type!=="N/A") {
+                                // have type - use for category
+                                var Category = result.attributes.Type;
+                                var Name     = $.trim( result.address.split(",")[0] ); // remove county & state
+                            } else {
+                                // no type - address or other
+                                var Category = "Addresses and Other Suggestions";
+                                var Name     = $.trim( result.address );
+                            }
+                            
+                            // add to resultObj for sorting
+                            // same result can be returned from different sources - do not add duplicates
+                            if (resultObj[Category]               ===undefined) { resultObj[Category]                = {}; }
+                            if (resultObj[Category][State]        ===undefined) { resultObj[Category][State]         = {}; }
+                            if (resultObj[Category][State][County]===undefined) { resultObj[Category][State][County] = []; }
+                            var addId = [Category,State,County,Name].join("|");
+                            if ( $.inArray(addId,addIds)<0 ) { // not a duplicate
+                                addIds.push(addId);
+                                resultObj[Category][State][County].push({
+                                    Id           : null,
+                                    Category     : Category,
+                                    Label        : Name + " (" + County + ", " + State + ")",
+                                    Name         : Name,
+                                    County       : County,
+                                    State        : State,
+                                    ElevFt       : "N/A",
+                                    GnisId       : "N/A",
+                                    Lat          : parseFloat(result.attributes.Y),
+                                    Lon          : parseFloat(result.attributes.X),
+                                    LatMin       : result.extent.ymin,
+                                    LatMax       : result.extent.ymax,
+                                    LonMin       : result.extent.xmin,
+                                    LonMax       : result.extent.xmax,
+                                    PercentMatch : result.score,
+                                    Source       : "ESRI:"+result.attributes.Loc_name
+                                });
+                            }
+                        });
+                        
+                        // add to results sorted by category then state then county
+                        var S1 = [];  $.each( resultObj, function(n){ S1.push(n); });
+                        $.each( S1.sort(), function(idx,s1) {
+                            var S2 = [];  $.each( resultObj[s1], function(n){ S2.push(n); });
+                            $.each( S2.sort(), function(idx,s2) {
+                                var S3 = [];  $.each( resultObj[s1][s2], function(n){ S3.push(n); });
+                                $.each( S3.sort(), function(idx,s3) {
+                                    results = results.concat( resultObj[s1][s2][s3] );
+                                });
+                            });
+                        });
+                    },
+                    error: function(xhr) {
+                        // secondary service error
+                        // ...log error if call wasn't aborted on purpose
+                        if ( xhr.statusText.toLowerCase() !== "abort" ) {
+                            search_api._console(funcName+"secondary service error: "+xhr.statusText,"warn");
+                        }
+                    },
+                    complete: function(xhr) {
+                        // secondary service complete
+                        search_api._console(funcName+"secondary service returned "+results.length+" results after filtering");
+                        o._getSpinner().addClass("search-api-spinner-hidden"); // hide spinner
+                        o._menu.update( search_term, results );                // update menu with results
+                        if ( xhr.statusText.toLowerCase() !== "abort" ) {      // save to cache if not aborted
+                            o._menu.cache[term_cache] = results;
+                        }
+                        if (results.length<=0) { o.trigger("failure"); }       // trigger failure if no results
                     }
-                };
+                    
+                }); // secondary ajax
                 
-                // add a label from name, county, and state
-                o.result.properties.Label = o.result.properties.Name;
-                if (o.result.properties.Name === "N/A") {
-                    // no name - no label
-                    o.result.properties.Label = "";
-                } else if ((o.result.properties.County !== "N/A") && (o.result.properties.State !== "N/A")) {
-                    // have name, county, & state
-                    o.result.properties.Label = o.result.properties.Name + " (" + o.result.properties.County + ", " + o.result.properties.State + ")";
-                } else if (o.result.properties.County !== "N/A") {
-                    // have name & county
-                    o.result.properties.Label = o.result.properties.Name + " (" + o.result.properties.County + ")";
-                } else if (o.result.properties.State !== "N/A") {
-                    // have name & state
-                    o.result.properties.Label = o.result.properties.Name + " (" + o.result.properties.State + ")";
-                } else {
-                    // just have name
-                    o.result.properties.Label = o.result.properties.Name;
-                }
-                
-                // clear text box and disable search button
-                o._getTextbox().val("");
-                o._getButton().removeClass("search-api-button-active");
-                
-                // trigger event
-                o.trigger("result");
-                
-                // done
-                haveResult = true;
-                return false; // end loop
-            });
-        },
-        
-        "error": function(status) {
-            // log warning
-            search_api._console(funcName+"secondary geocoding service error: "+status.statusText,"warn");
-        },
-        
-        "complete": function() {
-            // enable and hide spinner
-            o.enable(true)._getSpinner().addClass("search-api-spinner-hidden");
+            } // api ajax complete
             
-            // trigger failure if no result or timeout
-            if (!haveResult) { o.trigger("failure"); }
-        }
-    });
+        }); // api ajax
+        
+    }, 50 ); // adjust delay between service calls as needed
     
-}; // _geocode
+}; // _search
 
 
 //-----------------------------------------------------------
@@ -1334,7 +1293,7 @@ search_api._geocode = function(o) {
 //             "error" - log error
 // output:
 //   (none)
-search_api._console = function _console( msg, mode ) {
+search_api._console = function( msg, mode ) {
     if (!window.console) { return; }
     if (msg  === undefined) { msg  = ""   }   // default msg
     if (mode === undefined) { mode = "D"; }   // default mode
@@ -1349,10 +1308,14 @@ search_api._console = function _console( msg, mode ) {
 }; // _console
 
 
+// load msg
+if (search_api._isLoadedJq) {
+    console.log( (new Date()).toLocaleTimeString() + " search_api " + search_api.version + " [load]: api loaded and available" );
+}
+
 //===========================================================
 // leaflet plugin - available when leaflet loaded before api
 //===========================================================
-console.log( (new Date()).toLocaleTimeString() + " search_api " + search_api.version + " [load]: api loaded and available" );
 if (
     window.L           !== undefined &&
     L.Control          !== undefined &&
@@ -1379,9 +1342,6 @@ if (
             
             // whether to automatically connect basic on_result handler to zoom map to result and show popup when on_result is not input
             autoResult: true,
-            
-            // whether to automatically disable suggestion menu if mobile device is detected
-            autoDisableMenu: false,
             
             // all search_api.create() options supported as additional properties
         },
@@ -1429,15 +1389,9 @@ if (
                 }
             }
             
-            // disable menu if mobile and specified
-            if (L.Browser.mobile && opts.autoDisableMenu===true) {
-                opts.enable_menu = false;
-            }
-            
             // remove non-api options
-            delete opts.position
+            delete opts.position;
             delete opts.autoResult;
-            delete opts.autoDisableMenu
             
             // create widget using opts and return control div
             this._widget = search_api.create( div.id, opts );
