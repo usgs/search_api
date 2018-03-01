@@ -57,7 +57,7 @@ if (!search_api._isLoadedJq) { console.error("The search_api requires jQuery. Th
 search_api._caller = "jsapi_2.1";
 
 // base url of primary api data service for suggestion menu
-search_api._apiServiceUrl = "https://txpub.usgs.gov/DSS/search_api/2.1/services/services.ashx/search";
+search_api._apiServiceUrl = "https://txdata.usgs.gov/search_api/2.1/services.ashx/search";
 
 // base url of secondary geocoding service
 search_api._2ndServiceUrl = "https://geocode.arcgis.com/arcgis/rest/services/World/GeocodeServer/findAddressCandidates";
