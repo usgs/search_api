@@ -1,28 +1,54 @@
 {
-  "name": "usgs-search-api",
-  "version": "2.1.0",
-  "description": "USGS Search JavaScript API",
-  "devDependencies": {
-  },
-  "main": "dist/search_api.js",
-  "style": "dist/search_api.css",
-  "files": [
-    "dist/*"
-  ],
-  "repository": {
+  "_from": "github:usgs/search_api",
+  "_id": "usgs-search-api@2.1.0",
+  "_inBundle": false,
+  "_integrity": "sha1-cSj+SxkdLHZGDk1ZJvZDgEz+df8=",
+  "_location": "/usgs-search-api",
+  "_phantomChildren": {},
+  "_requested": {
     "type": "git",
-    "url": "https://github.com/usgs/search_api.git"
+    "raw": "usgs-search-api@github:usgs/search_api",
+    "name": "usgs-search-api",
+    "escapedName": "usgs-search-api",
+    "rawSpec": "github:usgs/search_api",
+    "saveSpec": "github:usgs/search_api",
+    "fetchSpec": null,
+    "gitCommittish": "master"
   },
-  "keywords": [
-    "usgs",
-    "search"
+  "_requiredBy": [
+    "/"
   ],
+  "_resolved": "github:usgs/search_api#18631f8ec0f63718215519c32b6ad14780bec340",
+  "_spec": "usgs-search-api@github:usgs/search_api",
+  "_where": "c:\\NYBackup\\GitHub\\StreamStats",
+  "bugs": {
+    "url": "https://github.com/usgs/search_api/issues"
+  },
+  "bundleDependencies": false,
   "contributors": [
     {
       "name": "Joe Vrabel",
       "email": "jvrabel@usgs.gov"
     }
   ],
+  "deprecated": false,
+  "description": "USGS Search JavaScript API",
+  "devDependencies": {},
+  "files": [
+    "dist/*"
+  ],
+  "homepage": "https://github.com/usgs/search_api#readme",
+  "keywords": [
+    "usgs",
+    "search"
+  ],
   "license": "MIT",
-  "readmeFilename": "README.md"
+  "main": "dist/search_api.js",
+  "name": "usgs-search-api",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/usgs/search_api.git"
+  },
+  "style": "dist/search_api.css",
+  "version": "2.1.0"
 }
