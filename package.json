@@ -43,12 +43,12 @@
     "search"
   ],
   "license": "MIT",
-  "main": "dist/search_api.js",
+  "main": "dist/geocoder.js",
   "name": "usgs-search-api",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/usgs/search_api.git"
   },
-  "style": "dist/search_api.css",
+  "style": "dist/geocoder.css",
   "version": "1.0.0"
 }
