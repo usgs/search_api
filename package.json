@@ -1,6 +1,6 @@
 {
   "_from": "github:usgs/search_api",
-  "_id": "usgs-search-api@2.1.0",
+  "_id": "usgs-search-api@1.0.0",
   "_inBundle": false,
   "_integrity": "sha1-cSj+SxkdLHZGDk1ZJvZDgEz+df8=",
   "_location": "/usgs-search-api",
@@ -50,5 +50,5 @@
     "url": "git+https://github.com/usgs/search_api.git"
   },
   "style": "dist/search_api.css",
-  "version": "2.1.0"
+  "version": "1.0.0"
 }
