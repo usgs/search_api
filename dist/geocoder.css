@@ -1,0 +1,372 @@
+/**
+ * @file    Geocoder CSS.
+ * @summary Geocoder: A JavaScript API for creating a location search control in a web page.
+ * @author  Joseph Vrabel, U.S. Geological Survey <jvrabel@usgs.gov>
+ * @version 1.0.0
+ * @preserve
+ */
+
+/*
+.............................................
+color and font variables
+set these variables in your css to customize colors and font
+
+example: global (applied to all controls)
+:root {
+    --gc-background-active: LightYellow;
+}
+
+example: scoped by class (applied to all controls having the class, see `className` api option)
+.my-geocoder-class {
+    --gc-background-active: LightYellow;
+}
+.............................................
+*/
+:root {
+    /* Background color of the text input and menu items. */
+    --gc-background: #fff;
+
+    /* Background color of the active menu item (mouse hover and keyboard navigation). */
+    --gc-background-active: #e9f4fc;
+
+    /* Background color of the magnifying glass icon and menu item separators. Also the right wait spinner color. */
+    --gc-background-icon: #eee;
+
+    /* Background color of the menu title bar. */
+    --gc-background-title: #999;
+
+    /* Border colors. */
+    --gc-border: #ccc;
+
+    /* Font family. */
+    --gc-font-family: Arial, Helvetica, sans-serif;
+
+    /* Color of left magnifying glass, input text, menu item separator text, menu item text. */
+    --gc-text: #333;
+
+    /* Input text color when no results found for the input string. */
+    --gc-text-invalid: #c00;
+
+    /* Text color of menu item substring matching the input string. Also the right wait spinner color and map marker color for Leaflet plugin. */
+    --gc-text-match: #18d;
+        
+    /* Text color of input placeholder and menu item footers. Also tooltip and popup secondary text color for Leaflet plugin. */
+    --gc-text-secondary: #999;
+}
+
+/*
+.............................................
+control:
+<element id="options.id">
+    <div class="gc-control">
+        <div class="gc-icon">
+            <svg>...</svg>
+        </div>
+        <input class="gc-input">
+        <div class="gc-spinner">
+            <div></div>
+        </div>
+    </div>
+</element>
+.............................................
+*/
+
+/* control container */
+.gc-control {
+    background-color: var(--gc-background);
+    border: 1px solid var(--gc-border);
+    border-radius: 0.25rem;
+    box-sizing: border-box;
+    display: inline-flex;
+    font-family: var(--gc-font-family);
+    line-height: 100%;
+    position: relative;
+}
+
+/* icon */
+.gc-icon {
+    background-color: var(--gc-background-icon);
+    border-radius: 0.25rem 0 0 0.25rem;
+    border-right: 1px solid var(--gc-border);
+    box-sizing: border-box;
+    flex: 0 0 auto;
+}
+.gc-icon svg {
+    fill: var(--gc-text);
+    margin: 0.19rem;
+}
+
+/* input */
+.gc-input {
+    background-color: var(--gc-background);
+    border: none;
+    border-radius: 0.25rem;
+    color: var(--gc-text);
+    outline: none;
+    padding-left: 0.6rem;
+    width: 100%;
+}
+.gc-input::-webkit-input-placeholder {
+    color: var(--gc-text-secondary);
+}
+.gc-input::-moz-placeholder {
+    color: var(--gc-text-secondary);
+}
+.gc-input:-ms-input-placeholder {
+    color: var(--gc-text-secondary);
+}
+.gc-input::-ms-input-placeholder {
+    color: var(--gc-text-secondary);
+}
+.gc-input::placeholder {
+    color: var(--gc-text-secondary);
+}
+
+/* spinner */
+.gc-spinner {
+    align-self: center;
+    background-color: var(--gc-background);
+    display: none;
+    position: absolute;
+    right: 0.19rem;
+}
+.gc-spinner div {
+    -webkit-animation: gc-spin 1s linear infinite;
+            animation: gc-spin 1s linear infinite;
+    border: 0.2rem solid var(--gc-background-icon);
+    border-radius: 50%;
+    border-top: 0.2rem solid var(--gc-text-match);
+    height: 1rem;
+    width: 1rem;
+}
+@-webkit-keyframes gc-spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+@keyframes gc-spin {
+    0% {
+        transform: rotate(0deg);
+    }
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+/* control state: busy */
+.gc-control.gc-busy .gc-spinner {
+    display: block;
+}
+
+/* control state: disabled */
+.gc-control.gc-disabled {
+    -webkit-filter: grayscale(60%) brightness(0.95) opacity(70%);
+    filter: grayscale(60%) brightness(0.95) opacity(70%);
+}
+
+/* control state: hidden */
+.gc-control.gc-hidden {
+    visibility: hidden;
+}
+
+/* control state: invalid */
+.gc-control.gc-invalid .gc-input:focus {
+    color: var(--gc-text-invalid);
+}
+
+/* control state: valid */
+.gc-control.gc-valid .gc-input:focus {
+    color: var(--gc-text-match);
+}
+
+/*
+.............................................
+suggestion menu:
+<body>
+    ...
+    <div class="gc-menu">
+        <div class="gc-menu-title"> title </div>
+        <div class="gc-menu-items">
+            <div class="gc-menu-separator"> group1 label </div>
+            <div class="gc-menu-item"> item1 </div>
+            <div class="gc-menu-item"> item2 </div>
+            ...more separators and items...
+        </div>
+    </div>
+    ...
+</body>
+.............................................
+*/
+
+/* menu container */
+.gc-menu {
+    background-color: var(--gc-background);
+    border: 1px solid var(--gc-border);
+    box-sizing: border-box;
+    display: none;
+    font-family: var(--gc-font-family);
+    line-height: 130%;
+    position: absolute;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+    z-index: 9999;
+}
+
+/* title bar */
+.gc-menu-title {
+    background-color: var(--gc-background-title);
+    color: var(--gc-background);
+    font-size: 80%;
+    font-weight: bold;
+    padding: 0.19rem 0.31rem;
+}
+
+/* item container */
+.gc-menu-items {
+    overflow-x: hidden;
+    overflow-y: auto;
+    position: relative;
+}
+
+/* item separator */
+.gc-menu-separator {
+    background-color: var(--gc-background-icon);
+    border-bottom: 1px solid var(--gc-border);
+    color: var(--gc-text);
+    font-size: 80%;
+    padding: 0.19rem;
+    text-align: center;
+}
+
+/* item */
+.gc-menu-item {
+    border-bottom: 1px solid var(--gc-border);
+    color: var(--gc-text);
+    cursor: pointer;
+    padding: 0.31rem 0.5rem;
+}
+.gc-menu-item-active {
+    background-color: var(--gc-background-active);
+}
+
+/* menu state: open */
+.gc-menu.gc-open {
+    display: block;
+}
+
+/*
+.............................................
+sizing
+.............................................
+*/
+
+/* sm (small 30px) */
+.gc-control.gc-sm {
+    height: 2rem;
+    width: 15.63rem;
+}
+.gc-sm .gc-icon {
+    width: 2rem;
+}
+.gc-sm .gc-input {
+    font-size: 0.875rem;
+}
+.gc-menu.gc-sm {
+    font-size: 0.875rem;
+}
+
+/* md (medium 38px) - default */
+.gc-control {
+    height: 2.5rem;
+    width: 18.75rem;
+}
+.gc-icon {
+    width: 2.5rem;
+}
+.gc-input {
+    font-size: 1.1rem;
+}
+.gc-menu {
+    font-size: 1.1rem;
+}
+
+/* lg (large 48px) */
+.gc-control.gc-lg {
+    height: 3.125rem;
+    width: 24rem;
+}
+.gc-lg .gc-icon {
+    width: 3.125rem;
+}
+.gc-lg .gc-input {
+    font-size: 1.25rem;
+}
+.gc-menu.gc-lg {
+    font-size: 1.25rem;
+}
+
+/*
+.............................................
+helpers
+.............................................
+*/
+.gc-muted {
+    color: var(--gc-text-secondary);
+    font-size: 85%;
+}
+
+/*
+.............................................
+leaflet plugin: map markers
+<div class="leaflet-marker-pane">
+    ...
+    <div class="leaflet-marker-icon gc-map-marker">
+        <div>
+            <svg>...</svg>
+        </div>
+    </div>
+    ...
+</div>
+.............................................
+*/
+.gc-map-marker {
+    z-index: 10000;
+}
+.gc-map-marker>div {
+    background-color: var(--gc-background);
+    border: 0.13rem solid;
+    border-color: var(--gc-text-match);
+    border-radius: 50%;
+    box-shadow: 0.2rem 0.2rem 0.5rem rgba(0, 0, 0, 0.3);
+    box-sizing: border-box;
+    color: var(--gc-text-match);
+    height: 2.1rem;
+    margin: -0.88rem -0.88rem;
+    transform: scale(0.8);
+    transition: background-color 400ms, border-color 400ms, color 400ms, transform 200ms;
+    width: 2.1rem;
+}
+.gc-map-marker>div svg {
+    fill: var(--gc-text-match);
+}
+
+.gc-map-marker:hover,
+.gc-map-marker-hover {
+    z-index: 11000 !important;
+}
+.gc-map-marker:hover>div,
+.gc-map-marker-hover>div {
+    background-color: var(--gc-text-match);
+    border-color: var(--gc-background);
+    color: var(--gc-background);
+    transform: scale(1.4);
+}
+.gc-map-marker:hover>div svg,
+.gc-map-marker-hover>div svg {
+    fill: var(--gc-background);
+}
